@@ -1,6 +1,6 @@
 // Tencent is pleased to support the open source community by making UnLua available.
 // 
-// Copyright (C) 2019 Tencent. All rights reserved.
+// Copyright (C) 2019 THL A29 Limited, a Tencent company. All rights reserved.
 //
 // Licensed under the MIT License (the "License"); 
 // you may not use this file except in compliance with the License. You may obtain a copy of the License at
@@ -108,9 +108,10 @@ static TValue* GetTValue(lua_State* L, int32 Index)
     CallInfo* ci = L->ci;
     if (Index > 0)
     {
-        StkId o = ci->func + Index;
-        check(Index <= L->ci->top - (ci->func + 1));
-        if (o >= L->top)
+        // Explicitly cast ci->func to a StkId, accessing the 'p' field safely
+        StkId o = (StkId)ci->func.p + Index;
+        check(Index <= L->ci->top.p - ((StkId)ci->func.p + 1));  // Compare using the 'p' field explicitly
+        if (o >= L->top.p)  // Explicitly compare the 'p' field of StkIdRel
         {
             return &G(L)->nilvalue;
         }
@@ -121,8 +122,8 @@ static TValue* GetTValue(lua_State* L, int32 Index)
     }
     else if (LUA_REGISTRYINDEX < Index)
     {  /* negative index */
-        check(Index != 0 && -Index <= L->top - (ci->func + 1));
-        return s2v(L->top + Index);
+        check(Index != 0 && -Index <= L->top.p - ((StkId)ci->func.p + 1));  // Adjusted comparison
+        return s2v(L->top.p + Index);
     }
     else if (Index == LUA_REGISTRYINDEX)
     {
@@ -132,14 +133,14 @@ static TValue* GetTValue(lua_State* L, int32 Index)
     {  /* upvalues */
         Index = LUA_REGISTRYINDEX - Index;
         check(Index <= MAXUPVAL + 1);
-        if (ttislcf(s2v(ci->func)))
+        if (ttislcf(s2v((StkId)ci->func.p)))  // Cast `ci->func` while checking
         {
             /* light C function? */
             return &G(L)->nilvalue;  /* it has no upvalues */
         }
         else
         {
-            CClosure* func = clCvalue(s2v(ci->func));
+            CClosure* func = clCvalue(s2v((StkId)ci->func.p));  // Accessing 'p' field correctly
             return (Index <= func->nupvalues) ? &func->upvalue[Index - 1] : &G(L)->nilvalue;
         }
     }
@@ -147,35 +148,36 @@ static TValue* GetTValue(lua_State* L, int32 Index)
     CallInfo* ci = L->ci;
     if (Index > 0)
     {
-        TValue* V = ci->func + Index;
-        check(Index <= ci->top - (ci->func + 1));
-        return V >= L->top ? (TValue*)NULL : V;
+        TValue* V = (TValue*)((StkId)ci->func.p + Index);  // Cast `ci->func` to StkId
+        check(Index <= ci->top.p - ((StkId)ci->func.p + 1));  // Adjusted comparison
+        return V >= L->top.p ? (TValue*)NULL : V;
     }
-    else if (Index > LUA_REGISTRYINDEX)             // negative
+    else if (Index > LUA_REGISTRYINDEX)   // Negative
     {
-        check(Index != 0 && -Index <= L->top - (ci->func + 1));
-        return L->top + Index;
+        check(Index != 0 && -Index <= L->top.p - ((StkId)ci->func.p + 1));  // Adjusted comparison
+        return L->top.p + Index;
     }
     else if (Index == LUA_REGISTRYINDEX)
     {
         return &G(L)->l_registry;
     }
-    else                                            // upvalues
+    else  // Upvalues
     {
         Index = LUA_REGISTRYINDEX - Index;
         check(Index <= MAXUPVAL + 1);
-        if (ttislcf(ci->func))
+        if (ttislcf((StkId)ci->func.p))  // Access and check correctly
         {
-            return (TValue*)NULL;                   // light C function has no upvalues
+            return (TValue*)NULL;  // light C function has no upvalues
         }
         else
         {
-            CClosure* Closure = clCvalue(ci->func);
+            CClosure* Closure = clCvalue((StkId)ci->func.p);  // Access correctly
             return (Index <= Closure->nupvalues) ? &Closure->upvalue[Index - 1] : (TValue*)NULL;
         }
     }
 #endif
 }
+
 
 static int32 GetTValueType(TValue* Value)
 {
@@ -711,7 +713,7 @@ template <typename T, bool WithMetaTableName>
 static void PushPropertyArray(lua_State *L, T *Property, void *Value, void(*PushFunc)(lua_State*, T*, void*), const char *MetatableName = nullptr)
 {
 #if !UE_BUILD_SHIPPING
-    if (!Property || !Value || Property->ArrayDim < 2 || Property->ElementSize < 1)
+    if (!Property || !Value || Property->ArrayDim < 2 || Property->GetElementSize() < 1)
     {
         UNLUA_LOGERROR(L, LogUnLua, Warning, TEXT("%s, Invalid parameters!"), ANSI_TO_TCHAR(__FUNCTION__));
         return;
@@ -739,7 +741,7 @@ static void PushPropertyArray(lua_State *L, T *Property, void *Value, void(*Push
         {
             lua_pushinteger(L, i + 1);
             PushFunc(L, Property, ElementPtr);
-            ElementPtr += Property->ElementSize;
+            ElementPtr += Property->GetElementSize();
             TPropertyArrayPushPolicy<T, WithMetaTableName>::PostPushSingleElement(L);
         }
         TPropertyArrayPushPolicy<T, WithMetaTableName>::PostPushArray(L);
@@ -750,7 +752,6 @@ static void PushPropertyArray(lua_State *L, T *Property, void *Value, void(*Push
     }
     lua_remove(L, -2);
 }
-
 
 void PushIntegerArray(lua_State *L, FNumericProperty *Property, void *Value)
 {

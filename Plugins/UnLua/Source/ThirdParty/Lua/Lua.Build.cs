@@ -1,15 +1,15 @@
 // Tencent is pleased to support the open source community by making UnLua available.
-// 
-// Copyright (C) 2019 Tencent. All rights reserved.
 //
-// Licensed under the MIT License (the "License"); 
+// Copyright (C) 2019 THL A29 Limited, a Tencent company. All rights reserved.
+//
+// Licensed under the MIT License (the "License");
 // you may not use this file except in compliance with the License. You may obtain a copy of the License at
 //
 // http://opensource.org/licenses/MIT
 //
-// Unless required by applicable law or agreed to in writing, 
-// software distributed under the License is distributed on an "AS IS" BASIS, 
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and limitations under the License.
 
 using System;
@@ -31,7 +31,7 @@ public class Lua : ModuleRules
     public Lua(ReadOnlyTargetRules Target) : base(Target)
     {
         Type = ModuleType.External;
-        bEnableUndefinedIdentifierWarnings = false;
+        UndefinedIdentifierWarningLevel = WarningLevel.Off;
         ShadowVariableWarningLevel = WarningLevel.Off;
 
         m_LuaVersion = GetLuaVersion();
@@ -425,8 +425,7 @@ public class Lua : ModuleRules
 
     private string GetConfigName()
     {
-        if (Target.Configuration == UnrealTargetConfiguration.Debug
-            || Target.Configuration == UnrealTargetConfiguration.DebugGame)
+        if (Target.Configuration == UnrealTargetConfiguration.Debug || Target.Configuration == UnrealTargetConfiguration.DebugGame)
             return "Debug";
         return "Release";
     }
@@ -434,20 +433,20 @@ public class Lua : ModuleRules
     private string GetBuildSystem()
     {
         var osPlatform = Environment.OSVersion.Platform;
+
         if (osPlatform == PlatformID.Win32NT)
         {
             if (Target.Platform.IsInGroup(UnrealPlatformGroup.Linux))
                 return "Ninja";
+
             if (Target.Platform.IsInGroup(UnrealPlatformGroup.Android))
                 return "Ninja";
+
             if (Target.Platform.IsInGroup(UnrealPlatformGroup.Windows))
             {
-                if (Target.WindowsPlatform.Compiler == WindowsCompiler.VisualStudio2019)
-                    return "Visual Studio 16 2019";
-#if UE_4_27_OR_LATER
-                if (Target.WindowsPlatform.Compiler == WindowsCompiler.VisualStudio2022)
+string compilerName = Target.WindowsPlatform.Compiler.ToString();
+if (compilerName == "MSVC" || compilerName == "VisualStudio2022")
                     return "Visual Studio 17 2022";
-#endif
             }
         }
 
@@ -455,12 +454,12 @@ public class Lua : ModuleRules
         {
             if (Target.Platform.IsInGroup(UnrealPlatformGroup.IOS))
                 return "Xcode";
+
             return "Unix Makefiles";
         }
 
         return null;
     }
-
     private void SetupForRuntimeDependency(string fullPath, string platform)
     {
         if (!File.Exists(fullPath))
